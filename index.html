@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B0B0C" />
+  <title>37 Board — Chalk &amp; Ink</title>
+
+  <!-- Fonts: Fraunces (display, calligraphic) + Spectral (readable serif). The
+       theme studio loads any other Google font on demand. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Spectral:ital,wght@0,200;0,300;0,400;0,500;0,600;1,300;1,400;1,500&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind Play CDN. Colours & fonts point at CSS variables, so the theme
+       studio can repaint everything (utilities + custom CSS) by setting one var. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['var(--font-display)'],
+            body: ['var(--font-body)'],
+          },
+          colors: {
+            ink:      'var(--ink)',
+            'ink-2':  'var(--ink-2)',
+            'ink-3':  'var(--ink-3)',
+            chalk:    'var(--chalk)',
+            'chalk-2':'var(--chalk-2)',
+            'chalk-3':'var(--chalk-3)',
+            line:     'var(--line)',
+            'line-2': 'var(--line-2)',
+            start:  'var(--start)',
+            hand:   'var(--hand)',
+            foot:   'var(--foot)',
+            finish: 'var(--finish)',
+            star:   'var(--star)',
+          },
+          letterSpacing: { label: '0.22em' },
+        },
+      },
+    };
+  </script>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- restore a saved theme before first paint (no flash) -->
+  <script>
+    (function () {
+      try {
+        var t = JSON.parse(localStorage.getItem('board37.theme') || 'null');
+        if (!t) return;
+        if (t.vars) for (var k in t.vars) document.documentElement.style.setProperty(k, t.vars[k]);
+        if (t.fonts) t.fonts.forEach(function (f) {
+          var l = document.createElement('link'); l.rel = 'stylesheet';
+          l.href = 'https://fonts.googleapis.com/css2?family=' + f.replace(/ /g, '+') + '&display=swap';
+          document.head.appendChild(l);
+        });
+      } catch (e) {}
+    })();
+  </script>
+</head>
+
+<body class="bg-black text-chalk font-body antialiased selection:bg-chalk selection:text-ink">
+  <div class="page-aura"></div>
+
+  <div class="workbench">
+    <!-- The device viewport -->
+    <main id="app" class="app">
+      <div class="grain" aria-hidden="true"></div>
+      <div id="stage" class="stage"></div>
+      <nav id="tabbar" class="tabbar" aria-label="Основная навигация"></nav>
+      <div id="sheet-root" class="sheet-root" aria-hidden="true"></div>
+    </main>
+
+    <!-- Theme studio (styled independently of the app theme) -->
+    <aside id="panel" class="panel" aria-label="Студия темы"></aside>
+  </div>
+
+  <!-- floating toggle (mobile drawer / desktop hide) -->
+  <button id="panel-toggle" class="panel-toggle" aria-label="Студия темы">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+  </button>
+
+  <script src="icons.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
