@@ -38,21 +38,31 @@
   }
 
   function generateBoard() {
-    const cols = 16, rows = 18;
-    const W = 1000, H = 1120;
-    const padX = 30, padY = 30;
-    const cellW = (W - padX * 2) / (cols - 1);
-    const cellH = (H - padY * 2) / (rows - 1);
+    // Hexagonal (triangular) LED grid: equilateral triangles, 20 cm side.
+    // 11 holds per row, 21 rows. Counting rows from the bottom, odd rows are
+    // flush-left, even rows flush-right — this gives the half-step (10 cm)
+    // horizontal offset that turns a square grid into a triangular one.
+    //   odd rows : leftmost hole 17 cm from the left, rightmost 27 cm from right
+    //   even rows: leftmost hole 27 cm from the left, rightmost 17 cm from right
+    const COLS = 11, ROWS = 21;
+    const SC = 4;                                // display units per cm
+    const STEP = 20 * SC;                        // 80  — hole-to-hole, same row
+    const ROW_H = 20 * (Math.sqrt(3) / 2) * SC;  // ~69.3 — row to row
+    const ODD_LEFT  = 17 * SC;                   // 68  — left margin, odd rows
+    const EVEN_LEFT = 27 * SC;                   // 108 — left margin, even rows
+    const MARGIN_V  = 17 * SC;                   // 68  — top / bottom margin
+    const W = (17 + 20 * (COLS - 1) + 27) * SC;  // 244 cm -> 976
+    const H = Math.round(MARGIN_V * 2 + ROW_H * (ROWS - 1));
     const rng = mulberry32(13731);
     const holds = [];
     let id = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const jx = (rng() - 0.5) * cellW * 0.5;
-        const jy = (rng() - 0.5) * cellH * 0.5;
-        const cx = padX + c * cellW + jx;
-        const cy = padY + r * cellH + jy;
-        const size = cellW * (0.30 + rng() * 0.22);
+    for (let r = 0; r < ROWS; r++) {             // r = 0 -> bottom row
+      const leftAligned = (r % 2 === 0);         // bottom row is "first" -> odd
+      const baseX = leftAligned ? ODD_LEFT : EVEN_LEFT;
+      const cy = H - (MARGIN_V + r * ROW_H);     // SVG y grows downward
+      for (let c = 0; c < COLS; c++) {
+        const cx = baseX + c * STEP;
+        const size = STEP * 0.22;
         holds.push({
           id, col: c, row: r, cx, cy, r: size,
           rot: rng() * 360,
@@ -61,19 +71,20 @@
         id++;
       }
     }
-    return { cols, rows, W, H, holds };
+    return { cols: COLS, rows: ROWS, W, H, holds };
   }
 
   const BOARD = generateBoard();
 
   // pick a plausible, distinct route for a climb
   function selectHolds(seed) {
+    // row 0 = bottom, row (rows-1) = top
     const rng = mulberry32(seed);
     const { cols, rows, holds } = BOARD;
     const used = new Set();
     const out = [];
-    const center = 3 + Math.floor(rng() * (cols - 6));   // corridor centre
-    const spread = 3 + Math.floor(rng() * 3);
+    const center = 2 + Math.floor(rng() * (cols - 4));   // corridor centre col
+    const spread = 2 + Math.floor(rng() * 2);
 
     const pickInBand = (rLo, rHi, cLo, cHi) => {
       const pool = holds.filter(h =>
@@ -84,36 +95,38 @@
       used.add(h.id);
       return h.id;
     };
-    const band = () => [Math.max(0, center - spread), Math.min(cols - 1, center + spread)];
+    const cl = Math.max(0, center - spread), cr = Math.min(cols - 1, center + spread);
 
-    // finish (1, sometimes 2) near the top
-    const [cl, cr] = band();
-    const f1 = pickInBand(0, 1, cl, cr); if (f1 != null) out.push({ h: f1, role: 'finish' });
-    if (rng() > 0.6) { const f2 = pickInBand(0, 1, cl, cr); if (f2 != null) out.push({ h: f2, role: 'finish' }); }
+    // start (1-2) at the very bottom
+    const startCount = 1 + (rng() > 0.5 ? 1 : 0);
+    for (let i = 0; i < startCount; i++) {
+      const h = pickInBand(0, 1, cl, cr);
+      if (h != null) out.push({ h, role: 'start' });
+    }
 
-    // hands forming a meandering line down the middle
-    const handCount = 4 + Math.floor(rng() * 3);
-    const top = 2, bottom = rows - 6;
+    // feet just above the start
+    const footCount = 2 + Math.floor(rng() * 2);
+    for (let i = 0; i < footCount; i++) {
+      const h = pickInBand(2, 4, cl, cr);
+      if (h != null) out.push({ h, role: 'foot' });
+    }
+
+    // hands forming a meandering line up the middle
+    const handCount = 5 + Math.floor(rng() * 4);
+    const bottom = 4, top = rows - 3;
     for (let i = 0; i < handCount; i++) {
       const rowFrac = i / (handCount - 1);
-      const rr = Math.round(top + rowFrac * (bottom - top));
+      const rr = Math.round(bottom + rowFrac * (top - bottom));
       const wob = Math.round((rng() - 0.5) * 3);
       const h = pickInBand(rr, rr + 1, Math.max(0, center + wob - 2), Math.min(cols - 1, center + wob + 2));
       if (h != null) out.push({ h, role: 'hand' });
     }
 
-    // feet lower down
-    const footCount = 2 + Math.floor(rng() * 2);
-    for (let i = 0; i < footCount; i++) {
-      const h = pickInBand(rows - 6, rows - 3, cl, cr);
-      if (h != null) out.push({ h, role: 'foot' });
-    }
-
-    // start (1-2) at the bottom
-    const startCount = 1 + (rng() > 0.55 ? 1 : 0);
-    for (let i = 0; i < startCount; i++) {
+    // finish (1, sometimes 2) near the top
+    const finishCount = 1 + (rng() > 0.6 ? 1 : 0);
+    for (let i = 0; i < finishCount; i++) {
       const h = pickInBand(rows - 2, rows - 1, cl, cr);
-      if (h != null) out.push({ h, role: 'start' });
+      if (h != null) out.push({ h, role: 'finish' });
     }
     return out;
   }
@@ -156,7 +169,13 @@
     holds: selectHolds(1000 + i * 7),
     saved: false,
     logged: false,
+    swag: false,
+    noMatch: false,
+    noKick: false,
   }));
+
+  // Lament of the Steep showcases the special route flags
+  Object.assign(CLIMBS[0], { noMatch: true, swag: true, noKick: true });
 
   // ---- profile mock: logbook (sessions), folders, notifications ----------
   const GRADE_SCALE = ['6a', '6a+', '6b', '6b+', '6c', '6c+', '7a', '7a+', '7b', '7b+', '7c', '7c+', '8a'];
@@ -166,6 +185,7 @@
   ]);
   const dateKeyOf = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
+  const SETTERS = ['Cuckovich', 'KilterStudio', 's14rob', 'griffinwhiteside', 'nickwedge', 'kilterjackie', 'paulrobinson'];
   const lbRng = mulberry32(20260524);
   const TODAY = new Date(2026, 4, 24); // 2026-05-24
   const LOGBOOK = [];
@@ -175,6 +195,7 @@
     const d = new Date(TODAY); d.setDate(d.getDate() - dayBack);
     const key = dateKeyOf(d);
     const n = 2 + Math.floor(lbRng() * 5);
+    const baseMs = d.getTime() + (10 + Math.floor(lbRng() * 7)) * 3600000;
     for (let i = 0; i < n; i++) {
       let gi = Math.round(3 + lbRng() * 6 + (lbRng() - 0.5) * 3);
       gi = Math.max(0, Math.min(GRADE_SCALE.length - 1, gi));
@@ -182,8 +203,10 @@
       LOGBOOK.push({
         id: lid++, name: LB_NAMES[Math.floor(lbRng() * LB_NAMES.length)],
         font: GRADE_SCALE[gi], gi, dateKey: key,
-        ts: d.getTime() + i * 11 * 60000, // earlier i = earlier in the day
+        ts: baseMs + i * 11 * 60000 + Math.floor(lbRng() * 60) * 1000,
         attempts, flash: attempts === 1,
+        setter: SETTERS[Math.floor(lbRng() * SETTERS.length)],
+        stars: 1 + Math.floor(lbRng() * 3),
       });
     }
   }

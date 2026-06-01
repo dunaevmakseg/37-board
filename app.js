@@ -24,7 +24,7 @@
     angle: 45,
     query: '',
     sort: 'popular',
-    filters: { vMin: 0, vMax: 10, minStars: 0 },
+    filters: { vMin: 0, vMax: 10, minStars: 0, likedOnly: false, swagOnly: false },
     climbIndex: 0,
   };
 
@@ -37,6 +37,8 @@
       (c.fa && c.fa.toLowerCase().includes(q)));
     const f = state.filters;
     list = list.filter(c => c.vNum >= f.vMin && c.vNum <= f.vMax && c.stars >= f.minStars);
+    if (f.likedOnly) list = list.filter(c => c.saved);
+    if (f.swagOnly) list = list.filter(c => c.swag);
     const sorters = {
       popular:    (a, b) => b.ascents - a.ascents,
       'grade-asc':(a, b) => a.vNum - b.vNum || b.ascents - a.ascents,
@@ -67,7 +69,7 @@
     let s = '<g class="rings">';
     climb.holds.forEach((sd) => {
       const hd = BOARD.holds[sd.h];
-      const r = hd.r * 1.85 + 4;
+      const r = hd.r * 1.5 + 5;
       s += `<circle class="ring ring--${sd.role}" cx="${hd.cx.toFixed(1)}" cy="${hd.cy.toFixed(1)}" r="${r.toFixed(1)}"/>`;
     });
     return s + '</g>';
@@ -90,14 +92,16 @@
     if (rootEl) {
       const old = rootEl;
       el.style.opacity = '0';
+      el.style.transform = 'translateY(12px)';
       stage.appendChild(el);
       requestAnimationFrame(() => {
-        el.style.transition = 'opacity .35s var(--ease-out)';
+        el.style.transition = 'opacity .42s var(--ease-out), transform .42s var(--ease-out)';
         el.style.opacity = '1';
-        old.style.transition = 'opacity .25s var(--ease-out)';
+        el.style.transform = 'translateY(0)';
+        old.style.transition = 'opacity .3s var(--ease-out)';
         old.style.opacity = '0';
       });
-      setTimeout(() => { old.remove(); el.style.transition = ''; }, 380);
+      setTimeout(() => { old.remove(); el.style.transition = ''; el.style.transform = ''; }, 460);
     } else {
       stage.appendChild(el);
     }
@@ -219,8 +223,8 @@
         <div class="row__meta">Сет: ${c.setter}${c.fa ? ` · FA: ${c.fa}` : ''}</div>
         <div class="row__count">${fmt(c.ascents)} ${plural(c.ascents, ['прохождение', 'прохождения', 'прохождений'])}</div>
       </div>
-      <div class="flex flex-col items-end justify-center">
-        <div class="row__grade">${c.font}<span class="text-chalk-3"> / </span>${c.v}</div>
+      <div class="flex flex-col items-center justify-center">
+        <div class="row__grade">${c.font}</div>
         ${starsHTML(c.stars)}
       </div>
     </article>`;
@@ -242,79 +246,95 @@
 
   /* ---- CLIMB DETAIL ----------------------------------------------------- */
   function openClimb(id) {
-    const list = currentList();
-    state.climbIndex = Math.max(0, list.findIndex(c => c.id === id));
-    pushScreen(buildDetail);
+    let list = currentList();
+    let idx = list.findIndex(c => c.id === id);
+    if (idx === -1) { list = CLIMBS.slice(); idx = list.findIndex(c => c.id === id); }
+    state.climbIndex = Math.max(0, idx);
+    pushScreen(() => buildDetail(list));
   }
 
   function headHTML(c) {
-    const nameItal = `<em>${c.name}</em>`;
+    const userLink = (u) => `<button class="detail-user" data-user="${u}">${u}</button>`;
+    const byLine = c.fa
+      ? `<div class="detail-by detail-split">
+           <span class="ds-left">Set: ${userLink(c.setter)}</span>
+           <span class="ds-dot">·</span>
+           <span class="ds-right">FA: ${userLink(c.fa)}</span>
+         </div>`
+      : `<div class="detail-by">Set: ${userLink(c.setter)}</div>`;
     return `
-      <div class="flex items-center justify-center gap-2.5 mb-2">
-        <span class="badge">${c.idx}</span>
-        <span class="label">${c.font} · ${c.v}</span>
-      </div>
-      <h1 class="detail-name">${nameItal}</h1>
-      <div class="text-chalk-2 text-sm mt-2">Сет: ${c.setter}${c.fa ? ` · FA: ${c.fa}` : ''}</div>
-      <div class="flex items-center justify-center gap-2.5 mt-2 text-chalk-3 text-[13px]">
+      <h1 class="detail-name"><em>${c.name}</em></h1>
+      ${byLine}
+      <div class="detail-meta-row">
+        ${c.swag ? `<span class="detail-tag detail-tag--swag">#SWAG</span>` : ''}
+        ${c.noMatch ? `<span class="detail-flag">${icon('noMatch')}</span>` : ''}
+        <span class="detail-cat">${c.font}</span>
+        ${c.noKick
+          ? `<span class="detail-tag detail-tag--nokick">no kickboard</span>`
+          : `<span class="detail-tag detail-tag--kick">kickboard</span>`}
         ${starsHTML(c.stars)}
-        <span>·</span>
-        <span>${fmt(c.ascents)} ${plural(c.ascents, ['пролаз', 'пролаза', 'пролазов'])}</span>
       </div>`;
+  }
+
+  function openUserProfile(username) {
+    pushScreen(() => buildProfile({ visited: username }));
   }
 
   function actionsHTML(c) {
     return `
-      <button class="btn btn--primary ${c.logged ? 'is-logged' : ''}" id="d-log">
-        ${icon('check')}<span>${c.logged ? 'Засчитано' : 'Отметить пролаз'}</span>
-      </button>
-      <button class="btn btn--ghost" id="d-beta" aria-label="Бета">${icon('bulb')}</button>
-      <button class="btn btn--ghost" id="d-save" aria-label="Сохранить" style="${c.saved ? 'color:var(--star)' : ''}">${icon('bookmark')}</button>`;
+      <button class="btn btn--act" id="d-light" aria-label="Подсветка">${icon('bulb')}</button>
+      <button class="btn btn--act" id="d-beta" aria-label="Бета">${icon('beta')}</button>
+      <button class="btn btn--act ${c.logged ? 'is-logged' : ''}" id="d-log" aria-label="Отметить пролаз">${icon('check')}</button>
+      <button class="btn btn--act" id="d-ascents" aria-label="Пролазы">${icon('tripod')}</button>
+      <button class="btn btn--act ${c.saved ? 'is-saved' : ''}" id="d-save" aria-label="В коллекцию">${icon('folder')}</button>`;
   }
 
-  function buildDetail() {
-    const list = currentList();
+  function buildDetail(listOverride) {
+    const list = listOverride || currentList();
     const c = list[state.climbIndex];
     const screen = screenEl(`
-      <header class="topbar !pb-2">
-        <div class="flex items-center justify-between">
-          <button class="iconbtn -ml-2" id="d-back">${icon('back')}</button>
-          <button class="anglepill" id="d-angle">${state.angle}<sup>°</sup></button>
-          <button class="iconbtn -mr-2" id="d-more">${icon('more')}</button>
-        </div>
+      <header class="detail-top">
+        <button class="iconbtn" id="d-back">${icon('back')}</button>
+        <div id="d-head" class="detail-head" style="transition:opacity .25s var(--ease-out)">${headHTML(c)}</div>
+        <button class="iconbtn" id="d-more">${icon('more')}</button>
       </header>
-      <div id="d-head" class="detail-head" style="transition:opacity .25s var(--ease-out)">${headHTML(c)}</div>
       <div class="board-wrap"><div id="d-deck" class="board-deck"></div></div>
-      <div class="legend">
-        ${Object.entries(ROLE_META).map(([k, m]) => `<span><i class="dot" style="background:${m.color}"></i>${m.label}</span>`).join('')}
-      </div>
       <div class="actionbar" id="d-actions">${actionsHTML(c)}</div>
     `);
 
     $('#d-back', screen).addEventListener('click', popScreen);
-    $('#d-angle', screen).addEventListener('click', openAngle);
     $('#d-more', screen).addEventListener('click', () => openClimbMenu(list[state.climbIndex]));
 
     const headEl = $('#d-head', screen);
     const actionsEl = $('#d-actions', screen);
 
+    const wireHead = () => headEl.querySelectorAll('.detail-user').forEach(b =>
+      b.addEventListener('click', () => {
+        if (b.classList.contains('is-activating')) return;
+        b.classList.add('is-activating');           // brief highlight, then go
+        setTimeout(() => openUserProfile(b.dataset.user), 600);
+      }));
+    wireHead();
+
     function refreshChrome(climb) {
       headEl.style.opacity = '0';
-      setTimeout(() => { headEl.innerHTML = headHTML(climb); headEl.style.opacity = '1'; }, 150);
+      setTimeout(() => { headEl.innerHTML = headHTML(climb); wireHead(); headEl.style.opacity = '1'; }, 150);
       wireActions(climb);
     }
     function wireActions(climb) {
       actionsEl.innerHTML = actionsHTML(climb);
+      $('#d-light', actionsEl).addEventListener('click', () => toast('Подсветка трассы — скоро'));
+      $('#d-beta', actionsEl).addEventListener('click', () => toast('Бета — скоро'));
       $('#d-log', actionsEl).addEventListener('click', () => {
         climb.logged = !climb.logged;
         wireActions(climb);
         toast(climb.logged ? `«${climb.name}» — засчитано ✓` : 'Отметка снята');
       });
-      $('#d-beta', actionsEl).addEventListener('click', () => toast('Видео-бета — скоро'));
+      $('#d-ascents', actionsEl).addEventListener('click', () => toast('Пролазы трассы — скоро'));
       $('#d-save', actionsEl).addEventListener('click', () => {
         climb.saved = !climb.saved;
         wireActions(climb);
-        toast(climb.saved ? 'Сохранено в избранное' : 'Убрано из избранного');
+        toast(climb.saved ? 'Добавлено в коллекцию' : 'Убрано из коллекции');
       });
     }
     wireActions(c);
@@ -367,6 +387,7 @@
       if (dx <= -threshold && idx < list.length - 1) dir = 1;
       else if (dx >= threshold && idx > 0) dir = -1;
       if (dir) {
+        onChange(list[idx + dir]);   // refresh the shapka in sync with the slide
         deck.style.transition = 'transform .42s var(--ease-out)';
         deck.style.transform = `translateX(${-dir * W}px)`;
         setTimeout(() => {
@@ -375,7 +396,6 @@
           build();
           deck.style.transform = 'translateX(0)';
           requestAnimationFrame(() => { deck.style.transition = ''; });
-          onChange(list[idx]);
         }, 420);
       } else {
         deck.style.transition = 'transform .34s var(--ease-out)';
@@ -477,7 +497,7 @@
   /* ---- PROFILE tab (customizable) --------------------------------------- */
   const profileState = { view: 'all', sort: 'date-desc', gMin: 0, gMax: GRADE_SCALE.length - 1, folderIdx: null };
   const PROFILE_KEY = 'board37.profile';
-  const DEFAULT_PROFILE = { name: 'Роман Дулёв', username: '@roman', status: 'Проектирую 7-ки по выходным 🧗', avatar: null, bg: null, followers: 248, following: 31, socials: [{ type: 'tg_account', handle: 'Yeeblane1337' }, { type: 'tg_channel', handle: 'BWchild' }] };
+  const DEFAULT_PROFILE = { name: 'Роман Дулёв', username: '@roman', status: 'Проектирую 7-ки по выходным 🧗', avatar: null, bg: null, followers: 248, following: 31, achievements: 12, socials: [{ type: 'tg_account', handle: 'Yeeblane1337' }, { type: 'tg_channel', handle: 'BWchild' }] };
   const SOCIAL_NETS = {
     tg_account: { icon: 'social-icons/tg_account.png', url: 'https://t.me/' },
     tg_channel: { icon: 'social-icons/tg_channel.png', url: 'https://t.me/' },
@@ -489,9 +509,26 @@
   let profileData = (() => { try { const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); return p ? { ...DEFAULT_PROFILE, ...p } : { ...DEFAULT_PROFILE }; } catch (e) { return { ...DEFAULT_PROFILE }; } })();
   const saveProfile = () => { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profileData)); } catch (e) {} };
 
+  // deterministic mock identity for a visited (someone else's) profile
+  function visitedProfile(username) {
+    let h = 0; for (let i = 0; i < username.length; i++) h = (h * 31 + username.charCodeAt(i)) >>> 0;
+    return {
+      name: username,
+      username: '@' + username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+      status: 'Скалолаз 37 Board 🧗',
+      avatar: null, bg: null,
+      followers: 40 + (h % 900),
+      following: 10 + (h % 200),
+      achievements: h % 30,
+      socials: [],
+    };
+  }
+
   const dShort = (ts) => new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   const dLong = (ts) => new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  const tTime = (ts) => { const d = new Date(ts); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':'); };
   const attLabel = (e) => e.flash ? 'Флеш' : `${e.attempts} ${plural(e.attempts, ['попытка', 'попытки', 'попыток'])}`;
+  const attLabelFull = (e) => attLabel(e) + (e.ts ? ` — ${tTime(e.ts)}` : '');
 
   function chartBars() {
     const M = Math.max(0, ...GRADE_COUNTS);
@@ -522,33 +559,42 @@
       <div class="chart-body"><div class="chart-gridlines">${gridLines}</div>${bars}</div>`;
   }
 
-  function buildProfile() {
+  function buildProfile(opts = {}) {
+    const visited = opts.visited || null;
+    const data = visited ? visitedProfile(visited) : profileData;
+    const coverCtl = visited
+      ? `<button class="prof-back" id="p-back" aria-label="Назад">${icon('back')}</button>`
+      : `<button class="prof-bell" id="p-bell" aria-label="Уведомления">${icon('bell')}<i class="prof-bell-dot"></i></button>
+         <button class="prof-brush" id="p-brush" aria-label="Редактировать профиль">${icon('brush')}</button>
+         <button class="prof-coverbtn" id="p-coverbtn" aria-label="Сменить фон"><span class="ic-wrap">${icon('camera')}</span><span>Фон</span></button>`;
     const screen = screenEl(`
-      <div class="prof-cover" id="p-cover" style="${profileData.bg ? `background-image:url('${profileData.bg}')` : ''}">
-        <button class="prof-bell" id="p-bell" aria-label="Уведомления">${icon('bell')}<i class="prof-bell-dot"></i></button>
-        <button class="prof-brush" id="p-brush" aria-label="Редактировать профиль">${icon('brush')}</button>
-        <button class="prof-coverbtn" id="p-coverbtn" aria-label="Сменить фон"><span class="ic-wrap">${icon('camera')}</span><span>Фон</span></button>
+      <div class="prof-cover" id="p-cover" style="${data.bg ? `background-image:url('${data.bg}')` : ''}">
+        ${coverCtl}
       </div>
       <div class="prof-id" id="p-id">
         <div class="prof-avatar-row">
-          <button class="prof-avatar" id="p-avatar">${profileData.avatar ? `<img src="${profileData.avatar}" alt="">` : icon('user')}<i class="prof-avcam">${icon('camera')}</i></button>
+          <button class="prof-avatar" id="p-avatar">${data.avatar ? `<img src="${data.avatar}" alt="">` : icon('user')}<i class="prof-avcam">${icon('camera')}</i></button>
           <div class="prof-stats">
             <button class="prof-stat" id="p-followers">
-              <span class="prof-stat-num">${profileData.followers ?? 0}</span>
+              <span class="prof-stat-num">${data.followers ?? 0}</span>
               <span class="prof-stat-lbl">подписчики</span>
             </button>
             <button class="prof-stat" id="p-following">
-              <span class="prof-stat-num">${profileData.following ?? 0}</span>
+              <span class="prof-stat-num">${data.following ?? 0}</span>
               <span class="prof-stat-lbl">подписки</span>
+            </button>
+            <button class="prof-stat" id="p-achievements">
+              <span class="prof-stat-num">${data.achievements ?? 0}</span>
+              <span class="prof-stat-lbl">ачивки</span>
             </button>
           </div>
         </div>
-        <div class="prof-name" id="p-name" contenteditable="false" spellcheck="false" data-ph="Имя Фамилия">${profileData.name}</div>
+        <div class="prof-name" id="p-name" contenteditable="false" spellcheck="false" data-ph="Имя Фамилия">${data.name}</div>
         <div class="prof-social-row">
-          <div class="prof-user" id="p-user" contenteditable="false" spellcheck="false" data-ph="@username">${profileData.username}</div>
-          <div class="prof-socials" id="p-socials">${renderSocials(profileData.socials)}</div>
+          <div class="prof-user" id="p-user" contenteditable="false" spellcheck="false" data-ph="@username">${data.username}</div>
+          <div class="prof-socials" id="p-socials">${renderSocials(data.socials)}</div>
         </div>
-        <div class="prof-status" id="p-status" contenteditable="false" spellcheck="false" data-ph="Добавь статус…">${profileData.status}</div>
+        <div class="prof-status" id="p-status" contenteditable="false" spellcheck="false" data-ph="Добавь статус…">${data.status}</div>
       </div>
 
       <div class="prof-sec">
@@ -572,14 +618,17 @@
       <div style="height:90px;flex:none"></div>
     `);
 
-    // ---- bell
-    $('#p-bell', screen).addEventListener('click', () => pushScreen(buildNotifications));
+    // ---- cover controls: back (visited) vs bell + edit (own)
+    if (visited) $('#p-back', screen).addEventListener('click', popScreen);
+    else $('#p-bell', screen).addEventListener('click', () => pushScreen(buildNotifications));
 
-    // ---- followers / following navigation
-    $('#p-followers', screen).addEventListener('click', () => pushScreen(() => buildUserList('followers', profileData.followers ?? 0)));
-    $('#p-following', screen).addEventListener('click', () => pushScreen(() => buildUserList('following', profileData.following ?? 0)));
+    // ---- followers / following / achievements navigation
+    $('#p-followers', screen).addEventListener('click', () => pushScreen(() => buildUserList('followers', data.followers ?? 0)));
+    $('#p-following', screen).addEventListener('click', () => pushScreen(() => buildUserList('following', data.following ?? 0)));
+    $('#p-achievements', screen).addEventListener('click', () => toast('Ачивки — скоро'));
 
-    // ---- edit mode
+    // ---- edit mode (own profile only)
+    if (!visited) {
     let editMode = false;
     const brushBtn = $('#p-brush', screen);
     const nameEl   = $('#p-name', screen);
@@ -663,6 +712,7 @@
       e.stopPropagation();
       pickImage((url) => { profileData.bg = url; saveProfile(); $('#p-cover', screen).style.backgroundImage = `url('${url}')`; });
     });
+    } // end edit-mode wiring (own profile only)
 
     // ---- list controls
     $('#p-seg', screen).querySelectorAll('.seg-opt').forEach(b => b.addEventListener('click', () => {
@@ -727,11 +777,24 @@
   };
 
   function logRowHTML(e, showDate) {
-    return `<div class="log-row">
-      <div class="min-w-0"><div class="log-name">${e.name}</div>
-        <div class="log-sub">${showDate ? dShort(e.ts) + ' · ' : ''}${attLabel(e)}</div></div>
-      <div class="log-grade">${e.font}</div>
+    const bySpan = e.setter ? `<span class="log-by">by ${e.setter}</span>` : '';
+    const subParts = [];
+    if (showDate && e.ts) subParts.push(dShort(e.ts));
+    if (e.attempts != null) subParts.push(attLabelFull(e));
+    const subLine = subParts.length ? `<div class="log-sub">${subParts.join(' · ')}</div>` : '';
+    return `<div class="log-row" data-name="${e.name}">
+      <div class="min-w-0"><div class="log-name-line"><span class="log-name">${e.name}</span>${bySpan}</div>${subLine}</div>
+      <div class="log-right"><div class="log-grade">${e.font}</div>${e.stars ? starsHTML(e.stars) : ''}</div>
     </div>`;
+  }
+
+  function wireLogRowClicks(container) {
+    container.querySelectorAll('.log-row[data-name]').forEach(row => {
+      const climb = CLIMBS.find(c => c.name === row.dataset.name);
+      if (!climb) return;
+      row.dataset.climbId = climb.id;
+      row.addEventListener('click', () => openClimb(climb.id));
+    });
   }
 
   function renderProfileList(scope) {
@@ -779,6 +842,7 @@
       wrap.innerHTML = items.length
         ? `<div class="sess">${items.map(e => logRowHTML(e, true)).join('')}</div>`
         : `<div class="text-chalk-3 text-sm py-10 text-center italic">Коллекция пуста</div>`;
+      wireLogRowClicks(wrap);
       return;
     }
 
@@ -790,6 +854,7 @@
       wrap.innerHTML = items.length
         ? `<div class="sess">${items.map(e => logRowHTML(e, true)).join('')}</div>`
         : emptyLog();
+      wireLogRowClicks(wrap);
       return;
     }
 
@@ -811,6 +876,7 @@
         ${rows.map(e => logRowHTML(e, false)).join('')}
       </div>`;
     }).join('');
+    wireLogRowClicks(wrap);
   }
 
   const emptyLog = () => `<div class="text-chalk-3 text-sm py-10 text-center italic">В этом диапазоне трасс нет</div>`;
@@ -951,7 +1017,8 @@
   }
 
   function openFilters() {
-    const V = Array.from({ length: 11 }, (_, i) => i); // V0..V10
+    const V_TO_FONT = ['4', '5', '5+', '6a', '6b', '6c', '7a', '7a+', '7b', '7c', '8a'];
+    const N = V_TO_FONT.length - 1;
     const f = state.filters;
     openSheet(`
       <div class="flex items-center justify-between mb-1">
@@ -960,31 +1027,110 @@
       </div>
       <div class="font-display text-2xl mb-4">Подбор трасс</div>
 
-      <div class="label mb-2">Категория от</div>
-      <div class="flex flex-wrap gap-2 mb-4" id="f-min">
-        ${V.map(v => `<button class="chip ${v === f.vMin ? 'is-on' : ''}" data-v="${v}">V${v}</button>`).join('')}
+      <div class="flex items-center justify-between mb-1">
+        <div class="label">Категория</div>
+        <span class="f-range-val" id="f-range-val"></span>
       </div>
-      <div class="label mb-2">Категория до</div>
-      <div class="flex flex-wrap gap-2 mb-4" id="f-max">
-        ${V.map(v => `<button class="chip ${v === f.vMax ? 'is-on' : ''}" data-v="${v}">V${v}</button>`).join('')}
+      <div class="f-slider-wrap" id="f-grade-slider">
+        <div class="f-slider-track" id="f-track">
+          <div class="f-slider-fill" id="f-fill"></div>
+          <div class="f-slider-handle" id="f-hmin"></div>
+          <div class="f-slider-handle" id="f-hmax"></div>
+        </div>
+        <div class="f-slider-ticks">
+          ${V_TO_FONT.map((g, i) => `<span style="left:${(i / N * 100).toFixed(1)}%">${g}</span>`).join('')}
+        </div>
       </div>
+
       <div class="label mb-2">Минимум звёзд</div>
-      <div class="flex gap-2 mb-6" id="f-stars">
+      <div class="flex gap-2 mb-5" id="f-stars">
         ${[0, 1, 2, 3].map(s => `<button class="chip ${s === f.minStars ? 'is-on' : ''}" data-s="${s}">${s === 0 ? 'Любые' : s + '★'}</button>`).join('')}
       </div>
+
+      <div class="label mb-2">Лайки</div>
+      <div class="flex gap-2 mb-5" id="f-liked">
+        <button class="chip ${!f.likedOnly ? 'is-on' : ''}" data-l="0">Все трассы</button>
+        <button class="chip ${f.likedOnly ? 'is-on' : ''}" data-l="1">Только лайки</button>
+      </div>
+
+      <div class="label mb-2">SWAG</div>
+      <div class="flex gap-2 mb-6" id="f-swag">
+        <button class="chip ${!f.swagOnly ? 'is-on' : ''}" data-sw="0">Все трассы</button>
+        <button class="chip ${f.swagOnly ? 'is-on' : ''}" data-sw="1">Только SWAG</button>
+      </div>
+
       <button class="btn btn--primary w-full" id="f-done">Показать трассы</button>
     `, (sheet) => {
       const live = () => { if (rootEl) renderList(rootEl); };
+
+      // dual-handle grade slider
+      const track = $('#f-track', sheet);
+      const fill = $('#f-fill', sheet);
+      const hMin = $('#f-hmin', sheet);
+      const hMax = $('#f-hmax', sheet);
+      const rangeVal = $('#f-range-val', sheet);
+
+      const updateSlider = () => {
+        hMin.style.left = `${(f.vMin / N * 100).toFixed(2)}%`;
+        hMax.style.left = `${(f.vMax / N * 100).toFixed(2)}%`;
+        fill.style.left = `${(f.vMin / N * 100).toFixed(2)}%`;
+        fill.style.right = `${((1 - f.vMax / N) * 100).toFixed(2)}%`;
+        rangeVal.textContent = f.vMin === f.vMax ? V_TO_FONT[f.vMin] : `${V_TO_FONT[f.vMin]} — ${V_TO_FONT[f.vMax]}`;
+      };
+
+      const makeDrag = (handle, isMin) => {
+        handle.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          handle.setPointerCapture(e.pointerId);
+          const onMove = (ev) => {
+            const rect = track.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+            const val = Math.round(pct * N);
+            if (isMin) { f.vMin = Math.min(val, f.vMax); }
+            else { f.vMax = Math.max(val, f.vMin); }
+            updateSlider(); live();
+          };
+          const cleanup = () => {
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', cleanup);
+            handle.removeEventListener('pointercancel', cleanup);
+          };
+          handle.addEventListener('pointermove', onMove);
+          handle.addEventListener('pointerup', cleanup);
+          handle.addEventListener('pointercancel', cleanup);
+        });
+      };
+      makeDrag(hMin, true);
+      makeDrag(hMax, false);
+      updateSlider();
+
+      // stars
       const single = (container, attr, apply) => {
         $(container, sheet).querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
           $(container, sheet).querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x === b));
           apply(parseInt(b.dataset[attr], 10)); live();
         }));
       };
-      single('#f-min', 'v', v => { f.vMin = v; if (f.vMax < v) f.vMax = v; sheet.querySelectorAll('#f-max button').forEach(x => x.classList.toggle('is-on', +x.dataset.v === f.vMax)); });
-      single('#f-max', 'v', v => { f.vMax = v; if (f.vMin > v) f.vMin = v; sheet.querySelectorAll('#f-min button').forEach(x => x.classList.toggle('is-on', +x.dataset.v === f.vMin)); });
       single('#f-stars', 's', s => { f.minStars = s; });
-      $('#f-reset', sheet).addEventListener('click', () => { f.vMin = 0; f.vMax = 10; f.minStars = 0; live(); closeSheet(); });
+
+      // likes
+      $('#f-liked', sheet).querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        f.likedOnly = b.dataset.l === '1';
+        $('#f-liked', sheet).querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x === b));
+        live();
+      }));
+
+      // SWAG
+      $('#f-swag', sheet).querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        f.swagOnly = b.dataset.sw === '1';
+        $('#f-swag', sheet).querySelectorAll('button').forEach(x => x.classList.toggle('is-on', x === b));
+        live();
+      }));
+
+      $('#f-reset', sheet).addEventListener('click', () => {
+        f.vMin = 0; f.vMax = 10; f.minStars = 0; f.likedOnly = false; f.swagOnly = false;
+        live(); closeSheet();
+      });
       $('#f-done', sheet).addEventListener('click', closeSheet);
     });
   }

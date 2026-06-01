@@ -81,12 +81,13 @@
   }
 
   /* ---- full font catalogue (fetched, with a strong built-in fallback) ---- */
+  /* Only fonts with Cyrillic support */
   const FALLBACK_FONTS = [
-    'Fraunces','Spectral','Playfair Display','Cormorant','Cormorant Garamond','EB Garamond','Newsreader','Lora','Libre Baskerville','Bitter','Crimson Pro','Crimson Text','PT Serif','Source Serif 4','Noto Serif','Merriweather','Domine','Frank Ruhl Libre','Zilla Slab','Roboto Slab','Bodoni Moda','DM Serif Display','DM Serif Text','Marcellus','Cardo','Italiana','Gilda Display','Prata','Rufina','Sorts Mill Goudy','Vollkorn','Literata','Faustina','Piazzolla','Old Standard TT','Alegreya','Bree Serif','Instrument Serif','Gloock','Petrona',
-    'Inter','Inter Tight','Roboto','Roboto Flex','Open Sans','Montserrat','Poppins','Raleway','Work Sans','Nunito','Nunito Sans','Mulish','DM Sans','Manrope','Sora','Outfit','Space Grotesk','Plus Jakarta Sans','Hanken Grotesk','Lexend','Figtree','Onest','Schibsted Grotesk','Albert Sans','Be Vietnam Pro','Red Hat Display','IBM Plex Sans','Rubik','Karla','Cabin','Quicksand','Josefin Sans','Archivo','Archivo Narrow','Barlow','Barlow Condensed','Oswald','Anton','Bebas Neue','League Spartan','Syne','Unbounded','Epilogue','Urbanist','Sen','Familjen Grotesk','Bricolage Grotesque','Big Shoulders Display',
-    'Abril Fatface','Yeseva One','Lobster','Righteous','Fredoka','Comfortaa','Alfa Slab One','Staatliches','Monoton','Bungee','Climate Crisis',
-    'Caveat','Dancing Script','Pacifico','Satisfy','Sacramento','Great Vibes','Kalam','Patrick Hand','Shadows Into Light','Permanent Marker','Allura','Parisienne','Tangerine','Cookie',
-    'JetBrains Mono','Fira Code','IBM Plex Mono','Space Mono','Source Code Pro','Roboto Mono','DM Mono','Martian Mono',
+    'Spectral','Playfair Display','Cormorant','Cormorant Garamond','EB Garamond','Lora','Bitter','PT Serif','Source Serif 4','Noto Serif','Merriweather','Roboto Slab','Literata','Old Standard TT','Alegreya',
+    'Inter','Inter Tight','Roboto','Roboto Flex','Open Sans','Montserrat','Raleway','Nunito','Nunito Sans','Manrope','Onest','IBM Plex Sans','Rubik','Oswald','Unbounded',
+    'Yeseva One','Lobster','Comfortaa',
+    'Caveat',
+    'JetBrains Mono','Fira Code','IBM Plex Mono','Source Code Pro','Roboto Mono','Martian Mono',
   ];
   let FONTS = FALLBACK_FONTS.slice().sort();
   const fontFields = [];
@@ -96,8 +97,8 @@
       const r = await fetch('https://api.fontsource.org/v1/fonts');
       if (!r.ok) return null;
       const j = await r.json();
-      const g = j.filter(f => f.type === 'google' && f.family).map(f => f.family);
-      if (g.length > 200) return [...new Set(g)].sort((a, b) => a.localeCompare(b));
+      const g = j.filter(f => f.type === 'google' && f.family && Array.isArray(f.subsets) && f.subsets.includes('cyrillic')).map(f => f.family);
+      if (g.length > 10) return [...new Set(g)].sort((a, b) => a.localeCompare(b));
     } catch (e) {}
     return null;
   }

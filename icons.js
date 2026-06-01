@@ -18,6 +18,9 @@
     more:   svg('<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>'),
     info:   svg('<circle cx="12" cy="12" r="8.4"/><path d="M12 11v5"/><path d="M12 8h.01"/>'),
     camera: svg('<path d="M4.5 8.5h2.2l1.2-1.8h6.2l1.2 1.8h2.2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.1"/>'),
+    tripod: svg('<rect x="5.5" y="3.8" width="13" height="7" rx="1.4"/><circle cx="12" cy="7.3" r="2.1"/><path d="M12 10.8v2.4"/><path d="M12 13.2 7.6 20.2M12 13.2 16.4 20.2M12 13.2V20.2" opacity=".9"/>'),
+    folder: svg('<path d="M4 7.6a1.6 1.6 0 0 1 1.6-1.6H9.8l2 2h6.6A1.6 1.6 0 0 1 20 9.6v7.8a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 17.4Z"/>'),
+    beta:   svg('<path d="M8.5 20V8C8.5 4.8 14 4.8 14 8C14 10.6 10.5 11.2 9 11.2C11 11.2 15.4 11.6 15.4 15C15.4 18.4 8.5 18.4 8.5 15.5"/>'),
 
     /* tab bar */
     boards: svg('<path d="M5 4v16M19 4v16"/><path d="M5 8h14M5 16h14" opacity=".55"/><path d="M14.5 9.5a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8Z"/><path d="M14 9.6l-2.6 2.2 1.4 1.6-1 3.2M11.4 11.8 8.6 11"/>'),
@@ -33,6 +36,16 @@
     globe: svg('<circle cx="12" cy="12" r="8.2"/><path d="M3.8 12h16.4M12 3.8c2.3 2.2 3.4 5.2 3.4 8.2s-1.1 6-3.4 8.2c-2.3-2.2-3.4-5.2-3.4-8.2S9.7 6 12 3.8Z"/>'),
     brush: svg('<path d="M3.5 20.5c0-2.5 2-3 2.5-5.5"/><path d="M6 15C8.5 10.5 16 4.5 21 3c-1.5 5-7 11-12.5 13.5L6 15Z"/><path d="M8.5 12.5C10.5 10 14 7.5 16 6.5" opacity=".35"/>'),
   };
+
+  /* route flags (shown in the climb viewer shapka) */
+  // no matching — two hands on one hold not allowed (hands drawn with a
+  // lighter stroke than the prohibition ring so they don't read as heavy)
+  ICONS.noMatch = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M5.7 5.7 18.3 18.3"/>
+    <path stroke-width=".9" d="M7.1 12v-1.7M8.2 12v-2M9.3 12v-1.7M6.6 12h3.4v1.7a1.7 1.7 0 0 1-1.7 1.7 1.7 1.7 0 0 1-1.7-1.7z"/>
+    <path stroke-width=".9" d="M14.7 12v-1.7M15.8 12v-2M16.9 12v-1.7M14 12h3.4v1.7a1.7 1.7 0 0 1-1.7 1.7 1.7 1.7 0 0 1-1.7-1.7z"/>
+  </svg>`;
 
   // notifications
   ICONS.heart = svg('<path d="M12 20.3 4.8 13.1a4.6 4.6 0 0 1 6.5-6.5l.7.7.7-.7a4.6 4.6 0 0 1 6.5 6.5Z"/>');
